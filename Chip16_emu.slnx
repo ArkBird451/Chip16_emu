@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Chip16_emu.vcxproj" />
+  <Project Path="Chip16_emu.vcxproj" Id="7ece7ee1-060c-4011-a299-3a9cf757f0e4" />
 </Solution>
