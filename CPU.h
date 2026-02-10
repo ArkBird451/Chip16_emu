@@ -41,6 +41,9 @@ private:
     Memory& memory;      // Reference to memory
     bool running;        // CPU running state
     uint64_t cycles;     // Cycle counter
+    
+    // Fetch instruction from memory at PC
+    Instruction fetch();
 
 public:
     // Constructor

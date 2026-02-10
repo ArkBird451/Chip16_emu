@@ -48,7 +48,7 @@ public:
     void reset();
     
     /**
-     * Get direct pointer to RAM (for debugging/testing)
+     * Get direct pointer to RAM
      */
     const uint8_t* getRawMemory() const { return ram; }
 };
