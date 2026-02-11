@@ -184,6 +184,158 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
+        // AND RX, RY - Bitwise AND register with register
+        case OP_AND_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[x] & regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // AND RX, HHLL - Bitwise AND register with immediate
+        case OP_AND_R_IMM: {
+            uint8_t x = inst.getX();
+            regs.R[x] = regs.R[x] & (int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // OR RX, RY - Bitwise OR register with register
+        case OP_OR_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[x] | regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // OR RX, HHLL - Bitwise OR register with immediate
+        case OP_OR_R_IMM: {
+            uint8_t x = inst.getX();
+            regs.R[x] = regs.R[x] | (int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // XOR RX, RY - Bitwise XOR register with register
+        case OP_XOR_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[x] ^ regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // XOR RX, HHLL - Bitwise XOR register with immediate
+        case OP_XOR_R_IMM: {
+            uint8_t x = inst.getX();
+            regs.R[x] = regs.R[x] ^ (int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // NOT RX - Bitwise NOT (invert all bits)
+        case OP_NOT_R: {
+            uint8_t x = inst.getX();
+            regs.R[x] = ~regs.R[x];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // MUL RX, RY - Multiply register by register
+        case OP_MUL_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int32_t result = (int32_t)regs.R[x] * (int32_t)regs.R[y];
+            regs.R[x] = (int16_t)result;
+            
+            // Set flags
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
+            break;
+        }
+        
+        // MUL RX, HHLL - Multiply register by immediate
+        case OP_MUL_R_IMM: {
+            uint8_t x = inst.getX();
+            int32_t result = (int32_t)regs.R[x] * (int32_t)(int16_t)inst.hhll;
+            regs.R[x] = (int16_t)result;
+            
+            // Set flags
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
+            break;
+        }
+        
+        // DIV RX, RY - Divide register by register
+        case OP_DIV_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            
+            if (regs.R[y] == 0) {
+                // Division by zero
+                setFlag(FLAG_C, true);
+                regs.R[x] = 0;
+            } else {
+                regs.R[x] = regs.R[x] / regs.R[y];
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // DIV RX, HHLL - Divide register by immediate
+        case OP_DIV_R_IMM: {
+            uint8_t x = inst.getX();
+            int16_t divisor = (int16_t)inst.hhll;
+            
+            if (divisor == 0) {
+                // Division by zero
+                setFlag(FLAG_C, true);
+                regs.R[x] = 0;
+            } else {
+                regs.R[x] = regs.R[x] / divisor;
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // MOD RX, RY - Modulo register by register
+        case OP_MOD_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            
+            if (regs.R[y] == 0) {
+                // Modulo by zero
+                setFlag(FLAG_C, true);
+                regs.R[x] = 0;
+            } else {
+                regs.R[x] = regs.R[x] % regs.R[y];
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // MOD RX, HHLL - Modulo register by immediate
+        case OP_MOD_R_IMM: {
+            uint8_t x = inst.getX();
+            int16_t divisor = (int16_t)inst.hhll;
+            
+            if (divisor == 0) {
+                // Modulo by zero
+                setFlag(FLAG_C, true);
+                regs.R[x] = 0;
+            } else {
+                regs.R[x] = regs.R[x] % divisor;
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
         // Unknown opcode
         default:
             std::cerr << "Unknown opcode: 0x" << std::hex << (int)inst.opcode << std::endl;

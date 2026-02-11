@@ -10,7 +10,7 @@
 
 // Arithmetic
 #define OP_ADD_R_R    0x01  // ADD RX, RY
-#define OP_ADD_R_IMM  0x03  // ADD RX, HHLL (changed from 0x02 to avoid conflict with HLT)
+#define OP_ADD_R_IMM  0x03  // ADD RX, HHLL
 #define OP_SUB_R_R    0x04  // SUB RX, RY
 #define OP_SUB_R_IMM  0x05  // SUB RX, HHLL
 #define OP_MUL_R_R    0x10  // MUL RX, RY
