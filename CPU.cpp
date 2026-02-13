@@ -336,6 +336,267 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
+        // SHL RX, RY - Shift left by register value
+        case OP_SHL_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t shift = regs.R[y] & 0x0F;  // Use only lower 4 bits
+            
+            if (shift > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (16 - shift))) != 0);
+                regs.R[x] = regs.R[x] << shift;
+            } else {
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // SHL RX, N - Shift left by immediate
+        case OP_SHL_R_IMM: {
+            uint8_t x = inst.getX();
+            uint8_t shift = inst.hhll & 0x0F;  // Use only lower 4 bits
+            
+            if (shift > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (16 - shift))) != 0);
+                regs.R[x] = regs.R[x] << shift;
+            } else {
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // SHR RX, RY - Shift right by register value
+        case OP_SHR_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t shift = regs.R[y] & 0x0F;
+            
+            if (shift > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
+                regs.R[x] = (uint16_t)regs.R[x] >> shift;  // Logical shift
+            } else {
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // SHR RX, N - Shift right by immediate
+        case OP_SHR_R_IMM: {
+            uint8_t x = inst.getX();
+            uint8_t shift = inst.hhll & 0x0F;
+            
+            if (shift > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
+                regs.R[x] = (uint16_t)regs.R[x] >> shift;  // Logical shift
+            } else {
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // SAR RX, RY - Shift right by register value
+        case OP_SAR_R_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t shift = regs.R[y] & 0x0F;
+            
+            if (shift > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
+                regs.R[x] = regs.R[x] >> shift;  // Arithmetic shift
+            } else {
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // SAR RX, N - Shift right by immediate
+        case OP_SAR_R_IMM: {
+            uint8_t x = inst.getX();
+            uint8_t shift = inst.hhll & 0x0F;
+            
+            if (shift > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
+                regs.R[x] = regs.R[x] >> shift;  // Arithmetic shift (sign-preserving)
+            } else {
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // LDM RX, HHLL - Load word from memory address into register
+        case OP_LDM_ADDR: {
+            uint8_t x = inst.getX();
+            uint16_t address = inst.hhll;
+            regs.R[x] = (int16_t)memory.readWord(address);
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // LDM RX, RY - Load word from memory address in RY into register
+        case OP_LDM_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint16_t address = (uint16_t)regs.R[y];
+            regs.R[x] = (int16_t)memory.readWord(address);
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // STM HHLL, RX - Store register word to memory address
+        case OP_STM_ADDR: {
+            uint8_t x = inst.getX();
+            uint16_t address = inst.hhll;
+            memory.writeWord(address, (uint16_t)regs.R[x]);
+            break;
+        }
+        
+        // STM RX, RY - Store RY to memory address in RX
+        case OP_STM_R: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint16_t address = (uint16_t)regs.R[x];
+            memory.writeWord(address, (uint16_t)regs.R[y]);
+            break;
+        }
+        
+        // PUSH RX - Push register onto stack
+        case OP_PUSH: {
+            uint8_t x = inst.getX();
+            regs.SP -= 2;  // Stack grows downward
+            memory.writeWord(regs.SP, (uint16_t)regs.R[x]);
+            break;
+        }
+        
+        // POP RX - Pop from stack into register
+        case OP_POP: {
+            uint8_t x = inst.getX();
+            regs.R[x] = (int16_t)memory.readWord(regs.SP);
+            regs.SP += 2;  // Move stack pointer up
+            break;
+        }
+        
+        // PUSHALL - Push all 16 registers onto stack
+        case OP_PUSHALL: {
+            for (int i = 0; i < 16; i++) {
+                regs.SP -= 2;
+                memory.writeWord(regs.SP, (uint16_t)regs.R[i]);
+            }
+            break;
+        }
+        
+        // POPALL - Pop all 16 registers from stack
+        case OP_POPALL: {
+            for (int i = 15; i >= 0; i--) {  // Pop in reverse order
+                regs.R[i] = (int16_t)memory.readWord(regs.SP);
+                regs.SP += 2;
+            }
+            break;
+        }
+        
+        // PUSHF - Push FLAGS register onto stack
+        case OP_PUSHF: {
+            regs.SP -= 2;
+            memory.writeWord(regs.SP, (uint16_t)regs.FLAGS);
+            break;
+        }
+        
+        // POPF - Pop FLAGS register from stack
+        case OP_POPF: {
+            regs.FLAGS = (uint8_t)memory.readWord(regs.SP);
+            regs.SP += 2;
+            break;
+        }
+        
+        // JMP HHLL - Jump to address
+        case OP_JMP: {
+            regs.PC = inst.hhll - 4;  // -4 because step() adds 4
+            break;
+        }
+        
+        // JMC HHLL - Jump relative
+        case OP_JMC: {
+            int16_t offset = (int16_t)inst.hhll;
+            regs.PC = regs.PC + offset;
+            break;
+        }
+        
+        // JX - Jump to address in register RX
+        case OP_JX: {
+            uint8_t x = inst.getX();
+            regs.PC = (uint16_t)regs.R[x] - 4;
+            break;
+        }
+        
+        // JZ HHLL - Jump if zero flag is set
+        case OP_JZ: {
+            if (getFlag(FLAG_Z)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JC HHLL - Jump if carry flag is set
+        case OP_JC: {
+            if (getFlag(FLAG_C)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JN HHLL - Jump if negative flag is set
+        case OP_JN: {
+            if (getFlag(FLAG_N)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JNZ HHLL - Jump if zero flag is clear
+        case OP_JNZ: {
+            if (!getFlag(FLAG_Z)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JNC HHLL - Jump if carry flag is clear
+        case OP_JNC: {
+            if (!getFlag(FLAG_C)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JNN HHLL - Jump if negative flag is clear
+        case OP_JNN: {
+            if (!getFlag(FLAG_N)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JO HHLL - Jump if overflow flag is set
+        case OP_JO: {
+            if (getFlag(FLAG_O)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JNO HHLL - Jump if overflow flag is clear
+        case OP_JNO: {
+            if (!getFlag(FLAG_O)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
         // Unknown opcode
         default:
             std::cerr << "Unknown opcode: 0x" << std::hex << (int)inst.opcode << std::endl;
