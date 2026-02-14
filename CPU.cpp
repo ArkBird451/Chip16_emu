@@ -3,9 +3,13 @@
 #include <iostream>
 #include <iomanip>
 #include <cstring>
+#include <random>
 
 // Constructor
 CPU::CPU(Memory& mem) : memory(mem), running(false), cycles(0) {
+    // Initialize random number generator with random seed
+    std::random_device rd;
+    rng.seed(rd());
     reset();
 }
 
@@ -240,6 +244,80 @@ void CPU::execute(const Instruction& inst) {
             uint8_t x = inst.getX();
             regs.R[x] = ~regs.R[x];
             updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        // CMPI RX, HHLL - Compare register with immediate
+        case OP_CMPI: {
+            uint8_t x = inst.getX();
+            int16_t imm = (int16_t)inst.hhll;
+            int32_t result = (int32_t)regs.R[x] - (int32_t)imm;
+            
+            // Set flags based on comparison
+            setFlag(FLAG_Z, result == 0);                    // Equal
+            setFlag(FLAG_N, (int16_t)result < 0);            // Negative
+            setFlag(FLAG_C, (uint16_t)regs.R[x] < (uint16_t)imm);  // Unsigned borrow
+            
+            // Overflow: (a-b) overflows if signs differ and result sign != a sign
+            bool overflow = ((regs.R[x] ^ imm) & (regs.R[x] ^ (int16_t)result)) & 0x8000;
+            setFlag(FLAG_O, overflow);
+            break;
+        }
+        
+        // CMP RX, RY - Compare two registers
+        case OP_CMP: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int32_t result = (int32_t)regs.R[x] - (int32_t)regs.R[y];
+            
+            // Set flags based on comparison
+            setFlag(FLAG_Z, result == 0);                    // Equal
+            setFlag(FLAG_N, (int16_t)result < 0);            // Negative
+            setFlag(FLAG_C, (uint16_t)regs.R[x] < (uint16_t)regs.R[y]);  // Unsigned borrow
+            
+            // Overflow: (a-b) overflows if signs differ and result sign != a sign
+            bool overflow = ((regs.R[x] ^ regs.R[y]) & (regs.R[x] ^ (int16_t)result)) & 0x8000;
+            setFlag(FLAG_O, overflow);
+            break;
+        }
+        
+        // TST RX, RY - Test bits (bitwise AND without storing result)
+        case OP_TST: {
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int16_t result = regs.R[x] & regs.R[y];
+            
+            // Set flags based on result (don't modify registers)
+            setFlag(FLAG_Z, result == 0);
+            setFlag(FLAG_N, result < 0);
+            break;
+        }
+        
+        // NEG RX - Negate (two's complement)
+        case OP_NEG: {
+            uint8_t x = inst.getX();
+            int16_t original = regs.R[x];
+            regs.R[x] = -original;
+            
+            // Set flags
+            setFlag(FLAG_Z, regs.R[x] == 0);
+            setFlag(FLAG_N, regs.R[x] < 0);
+            // Overflow occurs when negating the most negative value (-32768)
+            setFlag(FLAG_O, original == -32768);
+            break;
+        }
+        
+        // RND RX, HHLL - Random number from 0 to HHLL-1
+        case OP_RND: {
+            uint8_t x = inst.getX();
+            uint16_t max = inst.hhll;
+            
+            if (max == 0) {
+                regs.R[x] = 0;
+            } else {
+                std::uniform_int_distribution<int16_t> dist(0, max - 1);
+                regs.R[x] = dist(rng);
+            }
             break;
         }
         
@@ -592,6 +670,72 @@ void CPU::execute(const Instruction& inst) {
         // JNO HHLL - Jump if overflow flag is clear
         case OP_JNO: {
             if (!getFlag(FLAG_O)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JME HHLL - Jump if equal (Z flag set, after CMP)
+        case OP_JME: {
+            if (getFlag(FLAG_Z)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JNME HHLL - Jump if not equal (Z flag clear, after CMP)
+        case OP_JNME: {
+            if (!getFlag(FLAG_Z)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JG HHLL - Jump if greater (signed: Z clear AND N==O)
+        case OP_JG: {
+            bool z = getFlag(FLAG_Z);
+            bool n = getFlag(FLAG_N);
+            bool o = getFlag(FLAG_O);
+            
+            // Greater: not equal AND (N == O)
+            if (!z && (n == o)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JGE HHLL - Jump if greater or equal (signed: N==O)
+        case OP_JGE: {
+            bool n = getFlag(FLAG_N);
+            bool o = getFlag(FLAG_O);
+            
+            // Greater or equal: N == O
+            if (n == o) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JL HHLL - Jump if less (signed: N!=O)
+        case OP_JL: {
+            bool n = getFlag(FLAG_N);
+            bool o = getFlag(FLAG_O);
+            
+            // Less: N != O
+            if (n != o) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        // JLE HHLL - Jump if less or equal (signed: Z set OR N!=O)
+        case OP_JLE: {
+            bool z = getFlag(FLAG_Z);
+            bool n = getFlag(FLAG_N);
+            bool o = getFlag(FLAG_O);
+            
+            // Less or equal: equal OR (N != O)
+            if (z || (n != o)) {
                 regs.PC = inst.hhll - 4;
             }
             break;

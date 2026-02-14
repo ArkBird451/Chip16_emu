@@ -29,6 +29,13 @@
 #define OP_XOR_R_IMM  0x0E  // XOR RX, HHLL
 #define OP_NOT_R      0x19  // NOT RX
 
+// Comparison
+#define OP_CMPI       0x1A  // CMPI RX, HHLL (compare with immediate)
+#define OP_CMP        0x1B  // CMP RX, RY (compare registers)
+#define OP_TST        0x1C  // TST RX, RY (test bits)
+#define OP_NEG        0x1D  // NEG RX (negate - two's complement)
+#define OP_RND        0x1E  // RND RX, HHLL (random number 0 to HHLL-1)
+
 // Shifts
 #define OP_SHL_R_R    0x30  // SHL RX, RY
 #define OP_SHL_R_IMM  0x31  // SHL RX, N
@@ -67,6 +74,14 @@
 #define OP_JNN        0x58  // JNN HHLL (jump if not negative)
 #define OP_JO         0x59  // JO HHLL (jump if overflow)
 #define OP_JNO        0x5A  // JNO HHLL (jump if not overflow)
+
+// Extended Conditional Jumps (comparison-based)
+#define OP_JME        0x5B  // JME HHLL (jump if equal, after CMP)
+#define OP_JNME       0x5C  // JNME HHLL (jump if not equal)
+#define OP_JG         0x5D  // JG HHLL (jump if greater, signed)
+#define OP_JGE        0x5E  // JGE HHLL (jump if greater or equal)
+#define OP_JL         0x5F  // JL HHLL (jump if less, signed)
+#define OP_JLE        0x64  // JLE HHLL (jump if less or equal)
 
 // Subroutines
 #define OP_CALL       0x60  // CALL HHLL

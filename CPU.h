@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <random>
 #include "Memory.h"
 
 // Flags register bits
@@ -41,6 +42,9 @@ private:
     Memory& memory;      // Reference to memory
     bool running;        // CPU running state
     uint64_t cycles;     // Cycle counter
+    
+    // Random number generator
+    std::mt19937 rng;
     
     // Fetch instruction from memory at PC
     Instruction fetch();

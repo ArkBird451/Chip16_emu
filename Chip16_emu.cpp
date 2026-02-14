@@ -4,6 +4,7 @@
 #include "Memory.h"
 #include "CPU.h"
 #include "ROMLoader.h"
+#include "raylib.h"  // Test Raylib include
 
 int main(int argc, char* argv[]) {
     std::cout << "Chip16 Emulator" << std::endl;
