@@ -1,20 +1,44 @@
-// Chip16_emu.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
+// Chip16 Emulator - Main Entry Point
 
 #include <iostream>
+#include "Memory.h"
+#include "CPU.h"
+#include "ROMLoader.h"
 
-int main()
-{
-    std::cout << "Hello World!\n";
+int main(int argc, char* argv[]) {
+    std::cout << "Chip16 Emulator" << std::endl;
+    
+    // Check command line arguments
+    if (argc < 2) {
+        std::cout << "Usage: Chip16_emu <rom_file.c16|.bin>" << std::endl;
+        std::cout << "  Supports both binary and C16 format ROMs" << std::endl;
+        return 1;
+    }
+    
+    // Create emulator components
+    Memory memory;
+    CPU cpu(memory);
+    ROMLoader loader;
+    
+    // Load ROM
+    uint16_t startAddr = 0x0000;
+    if (!loader.loadROM(argv[1], memory, startAddr)) {
+        std::cerr << "Failed to load ROM" << std::endl;
+        return 1;
+    }
+    
+    // Reset CPU to start address
+    cpu.reset(startAddr);
+    
+    std::cout << std::endl << "Starting Execution" << std::endl << std::endl;
+    
+    // Run emulator
+    cpu.run(-1);
+    
+    std::cout << std::endl << "Execution Finished" << std::endl << std::endl;
+    
+    // Dump final CPU state
+    cpu.dumpState();
+    
+    return 0;
 }
-
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
-
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file

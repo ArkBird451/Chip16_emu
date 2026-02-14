@@ -597,6 +597,40 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
+        // CALL HHLL - Call subroutine at address
+        case OP_CALL: {
+            regs.SP -= 2;
+            memory.writeWord(regs.SP, regs.PC + 4);  // Push return address
+            regs.PC = inst.hhll - 4;  // Jump to subroutine
+            break;
+        }
+        
+        // RET - Return from subroutine
+        case OP_RET: {
+            regs.PC = memory.readWord(regs.SP) - 4;  // Pop return address
+            regs.SP += 2;
+            break;
+        }
+        
+        // CL RX - Call address in register
+        case OP_CL: {
+            uint8_t x = inst.getX();
+            regs.SP -= 2;
+            memory.writeWord(regs.SP, regs.PC + 4);  // Push return address
+            regs.PC = (uint16_t)regs.R[x] - 4;  // Jump to address in register
+            break;
+        }
+        
+        // CLC HHLL - Conditional call if carry is set
+        case OP_CLC: {
+            if (getFlag(FLAG_C)) {
+                regs.SP -= 2;
+                memory.writeWord(regs.SP, regs.PC + 4);  // Push return address
+                regs.PC = inst.hhll - 4;  // Jump to subroutine
+            }
+            break;
+        }
+        
         // Unknown opcode
         default:
             std::cerr << "Unknown opcode: 0x" << std::hex << (int)inst.opcode << std::endl;
@@ -607,7 +641,7 @@ void CPU::execute(const Instruction& inst) {
 
 // Dump CPU state for debugging
 void CPU::dumpState() const {
-    std::cout << "=== CPU State ===" << std::endl;
+    std::cout << "CPU State" << std::endl;
     std::cout << std::hex << std::uppercase;
     
     // Program Counter and Stack Pointer
