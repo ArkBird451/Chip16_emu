@@ -51,4 +51,9 @@ public:
      * Get direct pointer to RAM
      */
     const uint8_t* getRawMemory() const { return ram; }
+    
+    /**
+     * Get pointer to specific memory address
+     */
+    uint8_t* getPointer(uint16_t address) { return &ram[address]; }
 };

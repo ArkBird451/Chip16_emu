@@ -1,12 +1,13 @@
 #include "CPU.h"
 #include "Instructions.h"
+#include "Graphics.h"
 #include <iostream>
 #include <iomanip>
 #include <cstring>
 #include <random>
 
 // Constructor
-CPU::CPU(Memory& mem) : memory(mem), running(false), cycles(0) {
+CPU::CPU(Memory& mem) : memory(mem), graphics(nullptr), running(false), cycles(0) {
     // Initialize random number generator with random seed
     std::random_device rd;
     rng.seed(rd());
@@ -95,223 +96,55 @@ void CPU::run(int maxCycles) {
 // Execute decoded instruction
 void CPU::execute(const Instruction& inst) {
     switch (inst.opcode) {
-        // NOP - No operation
-        case OP_NOP:
-            // Do nothing
+        // 0x - Misc/Video/Audio
+        
+        case OP_NOP:  // 0x00 - No operation
             break;
         
-        // HLT - Halt execution
-        case OP_HLT:
-            running = false;
+        case OP_CLS:  // 0x01 - Clear screen
+            if (graphics) {
+                graphics->clearForeground();
+            }
             break;
         
-        // MOV RX, RY - Copy register to register
-        case OP_MOV: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            regs.R[x] = regs.R[y];
-            updateZeroNegativeFlags(regs.R[x]);
+        case OP_VBLNK:  // 0x02 - Wait for vertical blank
+            if (graphics) {
+                if (!graphics->getVBlank()) {
+                    regs.PC -= 4;  // Repeat until VBLANK
+                }
+            }
             break;
-        }
         
-        // LDI RX, HHLL - Load immediate value into register
-        case OP_LDI: {
-            uint8_t x = inst.getX();
-            regs.R[x] = (int16_t)inst.hhll;
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // ADD RX, RY - Add register to register
-        case OP_ADD_R_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            int16_t a = regs.R[x];
-            int16_t b = regs.R[y];
-            int32_t result = (int32_t)a + (int32_t)b;
-            regs.R[x] = (int16_t)result;
-            
-            // Set flags
-            updateZeroNegativeFlags(regs.R[x]);
-            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));  // Carry
-            setFlag(FLAG_O, ((a > 0 && b > 0 && regs.R[x] < 0) || 
-                             (a < 0 && b < 0 && regs.R[x] > 0)));     // Overflow
+        case OP_BGC: {  // 0x03 - Set background color
+            if (graphics) {
+                uint8_t colorIndex = inst.yx & 0x0F;
+                graphics->setBackgroundColor(colorIndex);
+            }
             break;
         }
         
-        // ADD RX, HHLL - Add immediate to register
-        case OP_ADD_R_IMM: {
-            uint8_t x = inst.getX();
-            int16_t a = regs.R[x];
-            int16_t b = (int16_t)inst.hhll;
-            int32_t result = (int32_t)a + (int32_t)b;
-            regs.R[x] = (int16_t)result;
-            
-            // Set flags
-            updateZeroNegativeFlags(regs.R[x]);
-            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
-            setFlag(FLAG_O, ((a > 0 && b > 0 && regs.R[x] < 0) || 
-                             (a < 0 && b < 0 && regs.R[x] > 0)));
+        case OP_SPR: {  // 0x04 - Set sprite width/height
+            if (graphics) {
+                uint8_t width = inst.hhll & 0xFF;
+                uint8_t height = (inst.hhll >> 8) & 0xFF;
+                graphics->setSpriteSize(width, height);
+            }
             break;
         }
         
-        // SUB RX, RY - Subtract register from register
-        case OP_SUB_R_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            int16_t a = regs.R[x];
-            int16_t b = regs.R[y];
-            int32_t result = (int32_t)a - (int32_t)b;
-            regs.R[x] = (int16_t)result;
-            
-            // Set flags
-            updateZeroNegativeFlags(regs.R[x]);
-            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));  // Borrow
-            setFlag(FLAG_O, ((a > 0 && b < 0 && regs.R[x] < 0) || 
-                             (a < 0 && b > 0 && regs.R[x] > 0)));     // Overflow
+        case OP_DRW_I: {  // 0x05 - Draw sprite (immediate address)
+            // TODO: Implement sprite drawing
             break;
         }
         
-        // SUB RX, HHLL - Subtract immediate from register
-        case OP_SUB_R_IMM: {
-            uint8_t x = inst.getX();
-            int16_t a = regs.R[x];
-            int16_t b = (int16_t)inst.hhll;
-            int32_t result = (int32_t)a - (int32_t)b;
-            regs.R[x] = (int16_t)result;
-            
-            // Set flags
-            updateZeroNegativeFlags(regs.R[x]);
-            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
-            setFlag(FLAG_O, ((a > 0 && b < 0 && regs.R[x] < 0) || 
-                             (a < 0 && b > 0 && regs.R[x] > 0)));
+        case OP_DRW_R: {  // 0x06 - Draw sprite (register address)
+            // TODO: Implement sprite drawing
             break;
         }
         
-        // AND RX, RY - Bitwise AND register with register
-        case OP_AND_R_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            regs.R[x] = regs.R[x] & regs.R[y];
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // AND RX, HHLL - Bitwise AND register with immediate
-        case OP_AND_R_IMM: {
-            uint8_t x = inst.getX();
-            regs.R[x] = regs.R[x] & (int16_t)inst.hhll;
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // OR RX, RY - Bitwise OR register with register
-        case OP_OR_R_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            regs.R[x] = regs.R[x] | regs.R[y];
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // OR RX, HHLL - Bitwise OR register with immediate
-        case OP_OR_R_IMM: {
-            uint8_t x = inst.getX();
-            regs.R[x] = regs.R[x] | (int16_t)inst.hhll;
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // XOR RX, RY - Bitwise XOR register with register
-        case OP_XOR_R_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            regs.R[x] = regs.R[x] ^ regs.R[y];
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // XOR RX, HHLL - Bitwise XOR register with immediate
-        case OP_XOR_R_IMM: {
-            uint8_t x = inst.getX();
-            regs.R[x] = regs.R[x] ^ (int16_t)inst.hhll;
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // NOT RX - Bitwise NOT (invert all bits)
-        case OP_NOT_R: {
-            uint8_t x = inst.getX();
-            regs.R[x] = ~regs.R[x];
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // CMPI RX, HHLL - Compare register with immediate
-        case OP_CMPI: {
-            uint8_t x = inst.getX();
-            int16_t imm = (int16_t)inst.hhll;
-            int32_t result = (int32_t)regs.R[x] - (int32_t)imm;
-            
-            // Set flags based on comparison
-            setFlag(FLAG_Z, result == 0);                    // Equal
-            setFlag(FLAG_N, (int16_t)result < 0);            // Negative
-            setFlag(FLAG_C, (uint16_t)regs.R[x] < (uint16_t)imm);  // Unsigned borrow
-            
-            // Overflow: (a-b) overflows if signs differ and result sign != a sign
-            bool overflow = ((regs.R[x] ^ imm) & (regs.R[x] ^ (int16_t)result)) & 0x8000;
-            setFlag(FLAG_O, overflow);
-            break;
-        }
-        
-        // CMP RX, RY - Compare two registers
-        case OP_CMP: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            int32_t result = (int32_t)regs.R[x] - (int32_t)regs.R[y];
-            
-            // Set flags based on comparison
-            setFlag(FLAG_Z, result == 0);                    // Equal
-            setFlag(FLAG_N, (int16_t)result < 0);            // Negative
-            setFlag(FLAG_C, (uint16_t)regs.R[x] < (uint16_t)regs.R[y]);  // Unsigned borrow
-            
-            // Overflow: (a-b) overflows if signs differ and result sign != a sign
-            bool overflow = ((regs.R[x] ^ regs.R[y]) & (regs.R[x] ^ (int16_t)result)) & 0x8000;
-            setFlag(FLAG_O, overflow);
-            break;
-        }
-        
-        // TST RX, RY - Test bits (bitwise AND without storing result)
-        case OP_TST: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            int16_t result = regs.R[x] & regs.R[y];
-            
-            // Set flags based on result (don't modify registers)
-            setFlag(FLAG_Z, result == 0);
-            setFlag(FLAG_N, result < 0);
-            break;
-        }
-        
-        // NEG RX - Negate (two's complement)
-        case OP_NEG: {
-            uint8_t x = inst.getX();
-            int16_t original = regs.R[x];
-            regs.R[x] = -original;
-            
-            // Set flags
-            setFlag(FLAG_Z, regs.R[x] == 0);
-            setFlag(FLAG_N, regs.R[x] < 0);
-            // Overflow occurs when negating the most negative value (-32768)
-            setFlag(FLAG_O, original == -32768);
-            break;
-        }
-        
-        // RND RX, HHLL - Random number from 0 to HHLL-1
-        case OP_RND: {
+        case OP_RND: {  // 0x07 - Random number 0 to HHLL
             uint8_t x = inst.getX();
             uint16_t max = inst.hhll;
-            
             if (max == 0) {
                 regs.R[x] = 0;
             } else {
@@ -321,55 +154,418 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
-        // MUL RX, RY - Multiply register by register
-        case OP_MUL_R_R: {
+        case OP_FLIP: {  // 0x08 - Set flip flags
+            if (graphics) {
+                bool hflip = (inst.hhll & 0x02) != 0;
+                bool vflip = (inst.hhll & 0x01) != 0;
+                graphics->setFlipFlags(hflip, vflip);
+            }
+            break;
+        }
+        
+        case OP_SND0:  // 0x09 - Stop sound
+        case OP_SND1:  // 0x0A - Play 500Hz
+        case OP_SND2:  // 0x0B - Play 1000Hz
+        case OP_SND3:  // 0x0C - Play 1500Hz
+        case OP_SNP:   // 0x0D - Play sound from register
+        case OP_SNG:   // 0x0E - Set sound generation parameters
+            // TODO: Implement sound
+            break;
+        
+        //1x - Jumps
+        
+        case OP_JMP:  // 0x10 - Jump to address
+            regs.PC = inst.hhll - 4;
+            break;
+        
+        case OP_JMC: {  // 0x11 - Jump if carry flag set
+            if (getFlag(FLAG_C)) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        case OP_JX: {  // 0x12 - Conditional jump based on x nibble
+            uint8_t cond = inst.getX();
+            bool shouldJump = false;
+            switch (cond) {
+                case 0x0: shouldJump = getFlag(FLAG_Z); break;           // Z - Zero
+                case 0x1: shouldJump = !getFlag(FLAG_Z); break;          // NZ - Not Zero
+                case 0x2: shouldJump = getFlag(FLAG_N); break;           // N - Negative
+                case 0x3: shouldJump = !getFlag(FLAG_N); break;          // NN - Not Negative
+                case 0x4: shouldJump = !getFlag(FLAG_N) && !getFlag(FLAG_Z); break;  // P - Positive
+                case 0x5: shouldJump = getFlag(FLAG_O); break;           // O - Overflow
+                case 0x6: shouldJump = !getFlag(FLAG_O); break;          // NO - No Overflow
+                case 0x7: shouldJump = !getFlag(FLAG_C) && !getFlag(FLAG_Z); break;  // A - Above
+                case 0x8: shouldJump = !getFlag(FLAG_C); break;          // AE - Above or Equal
+                case 0x9: shouldJump = getFlag(FLAG_C); break;           // B - Below
+                case 0xA: shouldJump = getFlag(FLAG_C) || getFlag(FLAG_Z); break;    // BE - Below or Equal
+                case 0xB: shouldJump = (getFlag(FLAG_O) == getFlag(FLAG_N)) && !getFlag(FLAG_Z); break;  // G
+                case 0xC: shouldJump = (getFlag(FLAG_O) == getFlag(FLAG_N)); break;  // GE
+                case 0xD: shouldJump = (getFlag(FLAG_O) != getFlag(FLAG_N)); break;  // L
+                case 0xE: shouldJump = (getFlag(FLAG_O) != getFlag(FLAG_N)) || getFlag(FLAG_Z); break;  // LE
+            }
+            if (shouldJump) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        case OP_JME: {  // 0x13 - Jump if RX == RY
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            if (regs.R[x] == regs.R[y]) {
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        case OP_CALL:  // 0x14 - Call subroutine
+            regs.SP -= 2;
+            memory.writeWord(regs.SP, regs.PC + 4);
+            regs.PC = inst.hhll - 4;
+            break;
+        
+        case OP_RET:  // 0x15 - Return from subroutine
+            regs.PC = memory.readWord(regs.SP) - 4;
+            regs.SP += 2;
+            break;
+        
+        case OP_JMP_R: {  // 0x16 - Jump to address in register
+            uint8_t x = inst.getX();
+            regs.PC = (uint16_t)regs.R[x] - 4;
+            break;
+        }
+        
+        case OP_CX: {  // 0x17 - Conditional call based on x nibble
+            uint8_t cond = inst.getX();
+            bool shouldCall = false;
+            switch (cond) {
+                case 0x0: shouldCall = getFlag(FLAG_Z); break;
+                case 0x1: shouldCall = !getFlag(FLAG_Z); break;
+                case 0x2: shouldCall = getFlag(FLAG_N); break;
+                case 0x3: shouldCall = !getFlag(FLAG_N); break;
+                case 0x4: shouldCall = !getFlag(FLAG_N) && !getFlag(FLAG_Z); break;
+                case 0x5: shouldCall = getFlag(FLAG_O); break;
+                case 0x6: shouldCall = !getFlag(FLAG_O); break;
+                case 0x7: shouldCall = !getFlag(FLAG_C) && !getFlag(FLAG_Z); break;
+                case 0x8: shouldCall = !getFlag(FLAG_C); break;
+                case 0x9: shouldCall = getFlag(FLAG_C); break;
+                case 0xA: shouldCall = getFlag(FLAG_C) || getFlag(FLAG_Z); break;
+                case 0xB: shouldCall = (getFlag(FLAG_O) == getFlag(FLAG_N)) && !getFlag(FLAG_Z); break;
+                case 0xC: shouldCall = (getFlag(FLAG_O) == getFlag(FLAG_N)); break;
+                case 0xD: shouldCall = (getFlag(FLAG_O) != getFlag(FLAG_N)); break;
+                case 0xE: shouldCall = (getFlag(FLAG_O) != getFlag(FLAG_N)) || getFlag(FLAG_Z); break;
+            }
+            if (shouldCall) {
+                regs.SP -= 2;
+                memory.writeWord(regs.SP, regs.PC + 4);
+                regs.PC = inst.hhll - 4;
+            }
+            break;
+        }
+        
+        case OP_CALL_R: {  // 0x18 - Call address in register
+            uint8_t x = inst.getX();
+            regs.SP -= 2;
+            memory.writeWord(regs.SP, regs.PC + 4);
+            regs.PC = (uint16_t)regs.R[x] - 4;
+            break;
+        }
+        
+        //2x - Loads
+        
+        case OP_LDI_R: {  // 0x20 - Load immediate into register
+            uint8_t x = inst.getX();
+            regs.R[x] = (int16_t)inst.hhll;
+            break;
+        }
+        
+        case OP_LDI_SP:  // 0x21 - Load immediate into SP
+            regs.SP = inst.hhll;
+            break;
+        
+        case OP_LDM_I: {  // 0x22 - Load from memory (immediate address)
+            uint8_t x = inst.getX();
+            regs.R[x] = (int16_t)memory.readWord(inst.hhll);
+            break;
+        }
+        
+        case OP_LDM_R: {  // 0x23 - Load from memory (register address)
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = (int16_t)memory.readWord((uint16_t)regs.R[y]);
+            break;
+        }
+        
+        case OP_MOV: {  // 0x24 - Move register to register
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[y];
+            break;
+        }
+        
+        //3x - Stores
+        
+        case OP_STM_I: {  // 0x30 - Store to memory (immediate address)
+            uint8_t x = inst.getX();
+            memory.writeWord(inst.hhll, (uint16_t)regs.R[x]);
+            break;
+        }
+        
+        case OP_STM_R: {  // 0x31 - Store to memory (register address)
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            memory.writeWord((uint16_t)regs.R[y], (uint16_t)regs.R[x]);
+            break;
+        }
+        
+        // 4x - Addition
+        
+        case OP_ADDI: {  // 0x40 - Add immediate
+            uint8_t x = inst.getX();
+            int16_t a = regs.R[x];
+            int16_t b = (int16_t)inst.hhll;
+            int32_t result = (int32_t)a + (int32_t)b;
+            regs.R[x] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
+            setFlag(FLAG_O, ((a > 0 && b > 0 && regs.R[x] < 0) || 
+                             (a < 0 && b < 0 && regs.R[x] > 0)));
+            break;
+        }
+        
+        case OP_ADD_R2: {  // 0x41 - Add two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int16_t a = regs.R[x];
+            int16_t b = regs.R[y];
+            int32_t result = (int32_t)a + (int32_t)b;
+            regs.R[x] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
+            setFlag(FLAG_O, ((a > 0 && b > 0 && regs.R[x] < 0) || 
+                             (a < 0 && b < 0 && regs.R[x] > 0)));
+            break;
+        }
+        
+        case OP_ADD_R3: {  // 0x42 - Add two registers, store in third
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t z = inst.hhll & 0x0F;
+            int16_t a = regs.R[x];
+            int16_t b = regs.R[y];
+            int32_t result = (int32_t)a + (int32_t)b;
+            regs.R[z] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[z]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
+            setFlag(FLAG_O, ((a > 0 && b > 0 && regs.R[z] < 0) || 
+                             (a < 0 && b < 0 && regs.R[z] > 0)));
+            break;
+        }
+        
+        //5x - Subtraction
+        
+        case OP_SUBI: {  // 0x50 - Subtract immediate
+            uint8_t x = inst.getX();
+            int16_t a = regs.R[x];
+            int16_t b = (int16_t)inst.hhll;
+            int32_t result = (int32_t)a - (int32_t)b;
+            regs.R[x] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (uint16_t)a < (uint16_t)b);
+            setFlag(FLAG_O, ((a > 0 && b < 0 && regs.R[x] < 0) || 
+                             (a < 0 && b > 0 && regs.R[x] > 0)));
+            break;
+        }
+        
+        case OP_SUB_R2: {  // 0x51 - Subtract two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int16_t a = regs.R[x];
+            int16_t b = regs.R[y];
+            int32_t result = (int32_t)a - (int32_t)b;
+            regs.R[x] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (uint16_t)a < (uint16_t)b);
+            setFlag(FLAG_O, ((a > 0 && b < 0 && regs.R[x] < 0) || 
+                             (a < 0 && b > 0 && regs.R[x] > 0)));
+            break;
+        }
+        
+        case OP_SUB_R3: {  // 0x52 - Subtract two registers, store in third
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t z = inst.hhll & 0x0F;
+            int16_t a = regs.R[x];
+            int16_t b = regs.R[y];
+            int32_t result = (int32_t)a - (int32_t)b;
+            regs.R[z] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[z]);
+            setFlag(FLAG_C, (uint16_t)a < (uint16_t)b);
+            setFlag(FLAG_O, ((a > 0 && b < 0 && regs.R[z] < 0) || 
+                             (a < 0 && b > 0 && regs.R[z] > 0)));
+            break;
+        }
+        
+        case OP_CMPI: {  // 0x53 - Compare with immediate
+            uint8_t x = inst.getX();
+            int16_t a = regs.R[x];
+            int16_t b = (int16_t)inst.hhll;
+            int32_t result = (int32_t)a - (int32_t)b;
+            setFlag(FLAG_Z, result == 0);
+            setFlag(FLAG_N, (int16_t)result < 0);
+            setFlag(FLAG_C, (uint16_t)a < (uint16_t)b);
+            setFlag(FLAG_O, ((a ^ b) & (a ^ (int16_t)result)) & 0x8000);
+            break;
+        }
+        
+        case OP_CMP: {  // 0x54 - Compare two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int16_t a = regs.R[x];
+            int16_t b = regs.R[y];
+            int32_t result = (int32_t)a - (int32_t)b;
+            setFlag(FLAG_Z, result == 0);
+            setFlag(FLAG_N, (int16_t)result < 0);
+            setFlag(FLAG_C, (uint16_t)a < (uint16_t)b);
+            setFlag(FLAG_O, ((a ^ b) & (a ^ (int16_t)result)) & 0x8000);
+            break;
+        }
+        
+        //6x - Bitwise AND
+        
+        case OP_ANDI: {  // 0x60 - AND with immediate
+            uint8_t x = inst.getX();
+            regs.R[x] = regs.R[x] & (int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_AND_R2: {  // 0x61 - AND two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[x] & regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_AND_R3: {  // 0x62 - AND two registers, store in third
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t z = inst.hhll & 0x0F;
+            regs.R[z] = regs.R[x] & regs.R[y];
+            updateZeroNegativeFlags(regs.R[z]);
+            break;
+        }
+        
+        case OP_TSTI: {  // 0x63 - Test with immediate
+            uint8_t x = inst.getX();
+            int16_t result = regs.R[x] & (int16_t)inst.hhll;
+            setFlag(FLAG_Z, result == 0);
+            setFlag(FLAG_N, result < 0);
+            break;
+        }
+        
+        case OP_TST: {  // 0x64 - Test two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int16_t result = regs.R[x] & regs.R[y];
+            setFlag(FLAG_Z, result == 0);
+            setFlag(FLAG_N, result < 0);
+            break;
+        }
+        
+        //7x - Bitwise OR
+        
+        case OP_ORI: {  // 0x70 - OR with immediate
+            uint8_t x = inst.getX();
+            regs.R[x] = regs.R[x] | (int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_OR_R2: {  // 0x71 - OR two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[x] | regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_OR_R3: {  // 0x72 - OR two registers, store in third
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t z = inst.hhll & 0x0F;
+            regs.R[z] = regs.R[x] | regs.R[y];
+            updateZeroNegativeFlags(regs.R[z]);
+            break;
+        }
+        
+        //8x - Bitwise XOR
+        
+        case OP_XORI: {  // 0x80 - XOR with immediate
+            uint8_t x = inst.getX();
+            regs.R[x] = regs.R[x] ^ (int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_XOR_R2: {  // 0x81 - XOR two registers
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = regs.R[x] ^ regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_XOR_R3: {  // 0x82 - XOR two registers, store in third
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t z = inst.hhll & 0x0F;
+            regs.R[z] = regs.R[x] ^ regs.R[y];
+            updateZeroNegativeFlags(regs.R[z]);
+            break;
+        }
+        
+        //9x - Multiplication
+        
+        case OP_MULI: {  // 0x90 - Multiply with immediate
+            uint8_t x = inst.getX();
+            int32_t result = (int32_t)regs.R[x] * (int32_t)(int16_t)inst.hhll;
+            regs.R[x] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[x]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
+            break;
+        }
+        
+        case OP_MUL_R2: {  // 0x91 - Multiply two registers
             uint8_t x = inst.getX();
             uint8_t y = inst.getY();
             int32_t result = (int32_t)regs.R[x] * (int32_t)regs.R[y];
             regs.R[x] = (int16_t)result;
-            
-            // Set flags
             updateZeroNegativeFlags(regs.R[x]);
             setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
             break;
         }
         
-        // MUL RX, HHLL - Multiply register by immediate
-        case OP_MUL_R_IMM: {
-            uint8_t x = inst.getX();
-            int32_t result = (int32_t)regs.R[x] * (int32_t)(int16_t)inst.hhll;
-            regs.R[x] = (int16_t)result;
-            
-            // Set flags
-            updateZeroNegativeFlags(regs.R[x]);
-            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
-            break;
-        }
-        
-        // DIV RX, RY - Divide register by register
-        case OP_DIV_R_R: {
+        case OP_MUL_R3: {  // 0x92 - Multiply two registers, store in third
             uint8_t x = inst.getX();
             uint8_t y = inst.getY();
-            
-            if (regs.R[y] == 0) {
-                // Division by zero
-                setFlag(FLAG_C, true);
-                regs.R[x] = 0;
-            } else {
-                regs.R[x] = regs.R[x] / regs.R[y];
-                setFlag(FLAG_C, false);
-            }
-            updateZeroNegativeFlags(regs.R[x]);
+            uint8_t z = inst.hhll & 0x0F;
+            int32_t result = (int32_t)regs.R[x] * (int32_t)regs.R[y];
+            regs.R[z] = (int16_t)result;
+            updateZeroNegativeFlags(regs.R[z]);
+            setFlag(FLAG_C, (result > 0x7FFF || result < -0x8000));
             break;
         }
         
-        // DIV RX, HHLL - Divide register by immediate
-        case OP_DIV_R_IMM: {
+        //Ax - Division
+        
+        case OP_DIVI: {  // 0xA0 - Divide by immediate
             uint8_t x = inst.getX();
             int16_t divisor = (int16_t)inst.hhll;
-            
             if (divisor == 0) {
-                // Division by zero
                 setFlag(FLAG_C, true);
                 regs.R[x] = 0;
             } else {
@@ -380,30 +576,39 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
-        // MOD RX, RY - Modulo register by register
-        case OP_MOD_R_R: {
+        case OP_DIV_R2: {  // 0xA1 - Divide two registers
             uint8_t x = inst.getX();
             uint8_t y = inst.getY();
-            
             if (regs.R[y] == 0) {
-                // Modulo by zero
                 setFlag(FLAG_C, true);
                 regs.R[x] = 0;
             } else {
-                regs.R[x] = regs.R[x] % regs.R[y];
+                regs.R[x] = regs.R[x] / regs.R[y];
                 setFlag(FLAG_C, false);
             }
             updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // MOD RX, HHLL - Modulo register by immediate
-        case OP_MOD_R_IMM: {
+        case OP_DIV_R3: {  // 0xA2 - Divide two registers, store in third
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            uint8_t z = inst.hhll & 0x0F;
+            if (regs.R[y] == 0) {
+                setFlag(FLAG_C, true);
+                regs.R[z] = 0;
+            } else {
+                regs.R[z] = regs.R[x] / regs.R[y];
+                setFlag(FLAG_C, false);
+            }
+            updateZeroNegativeFlags(regs.R[z]);
+            break;
+        }
+        
+        case OP_MODI: {  // 0xA3 - Modulo with immediate
             uint8_t x = inst.getX();
             int16_t divisor = (int16_t)inst.hhll;
-            
             if (divisor == 0) {
-                // Modulo by zero
                 setFlag(FLAG_C, true);
                 regs.R[x] = 0;
             } else {
@@ -414,364 +619,224 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
-        // SHL RX, RY - Shift left by register value
-        case OP_SHL_R_R: {
+        case OP_MOD_R2: {  // 0xA4 - Modulo two registers
             uint8_t x = inst.getX();
             uint8_t y = inst.getY();
-            uint8_t shift = regs.R[y] & 0x0F;  // Use only lower 4 bits
-            
-            if (shift > 0) {
-                setFlag(FLAG_C, (regs.R[x] & (1 << (16 - shift))) != 0);
-                regs.R[x] = regs.R[x] << shift;
+            if (regs.R[y] == 0) {
+                setFlag(FLAG_C, true);
+                regs.R[x] = 0;
             } else {
+                regs.R[x] = regs.R[x] % regs.R[y];
                 setFlag(FLAG_C, false);
             }
             updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // SHL RX, N - Shift left by immediate
-        case OP_SHL_R_IMM: {
-            uint8_t x = inst.getX();
-            uint8_t shift = inst.hhll & 0x0F;  // Use only lower 4 bits
-            
-            if (shift > 0) {
-                setFlag(FLAG_C, (regs.R[x] & (1 << (16 - shift))) != 0);
-                regs.R[x] = regs.R[x] << shift;
-            } else {
-                setFlag(FLAG_C, false);
-            }
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
-        
-        // SHR RX, RY - Shift right by register value
-        case OP_SHR_R_R: {
+        case OP_MOD_R3: {  // 0xA5 - Modulo two registers, store in third
             uint8_t x = inst.getX();
             uint8_t y = inst.getY();
-            uint8_t shift = regs.R[y] & 0x0F;
-            
-            if (shift > 0) {
-                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
-                regs.R[x] = (uint16_t)regs.R[x] >> shift;  // Logical shift
+            uint8_t z = inst.hhll & 0x0F;
+            if (regs.R[y] == 0) {
+                setFlag(FLAG_C, true);
+                regs.R[z] = 0;
             } else {
+                regs.R[z] = regs.R[x] % regs.R[y];
                 setFlag(FLAG_C, false);
             }
-            updateZeroNegativeFlags(regs.R[x]);
+            updateZeroNegativeFlags(regs.R[z]);
             break;
         }
         
-        // SHR RX, N - Shift right by immediate
-        case OP_SHR_R_IMM: {
+        case OP_REMI:   // 0xA6 - Remainder with immediate
+        case OP_REM_R2: // 0xA7 - Remainder two registers
+        case OP_REM_R3: // 0xA8 - Remainder two registers, store in third
+            // REM is same as MOD for signed integers in C++
+            // TODO: Verify behavior matches spec
+            break;
+        
+        //Bx - Shifts
+        
+        case OP_SHL_N: {  // 0xB0 - Shift left by immediate
             uint8_t x = inst.getX();
-            uint8_t shift = inst.hhll & 0x0F;
-            
-            if (shift > 0) {
-                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
-                regs.R[x] = (uint16_t)regs.R[x] >> shift;  // Logical shift
-            } else {
-                setFlag(FLAG_C, false);
+            uint8_t n = inst.hhll & 0x0F;
+            if (n > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (16 - n))) != 0);
+                regs.R[x] = regs.R[x] << n;
             }
             updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // SAR RX, RY - Shift right by register value
-        case OP_SAR_R_R: {
+        case OP_SHR_N: {  // 0xB1 - Shift right by immediate (logical)
+            uint8_t x = inst.getX();
+            uint8_t n = inst.hhll & 0x0F;
+            if (n > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (n - 1))) != 0);
+                regs.R[x] = (uint16_t)regs.R[x] >> n;
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_SAR_N: {  // 0xB2 - Shift arithmetic right by immediate
+            uint8_t x = inst.getX();
+            uint8_t n = inst.hhll & 0x0F;
+            if (n > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (n - 1))) != 0);
+                regs.R[x] = regs.R[x] >> n;  // Arithmetic shift preserves sign
+            }
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_SHL_R: {  // 0xB3 - Shift left by register
             uint8_t x = inst.getX();
             uint8_t y = inst.getY();
-            uint8_t shift = regs.R[y] & 0x0F;
-            
-            if (shift > 0) {
-                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
-                regs.R[x] = regs.R[x] >> shift;  // Arithmetic shift
-            } else {
-                setFlag(FLAG_C, false);
+            uint8_t n = regs.R[y] & 0x0F;
+            if (n > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (16 - n))) != 0);
+                regs.R[x] = regs.R[x] << n;
             }
             updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // SAR RX, N - Shift right by immediate
-        case OP_SAR_R_IMM: {
+        case OP_SHR_R: {  // 0xB4 - Shift right by register (logical)
             uint8_t x = inst.getX();
-            uint8_t shift = inst.hhll & 0x0F;
-            
-            if (shift > 0) {
-                setFlag(FLAG_C, (regs.R[x] & (1 << (shift - 1))) != 0);
-                regs.R[x] = regs.R[x] >> shift;  // Arithmetic shift (sign-preserving)
-            } else {
-                setFlag(FLAG_C, false);
+            uint8_t y = inst.getY();
+            uint8_t n = regs.R[y] & 0x0F;
+            if (n > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (n - 1))) != 0);
+                regs.R[x] = (uint16_t)regs.R[x] >> n;
             }
             updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // LDM RX, HHLL - Load word from memory address into register
-        case OP_LDM_ADDR: {
+        case OP_SAR_R: {  // 0xB5 - Shift arithmetic right by register
             uint8_t x = inst.getX();
-            uint16_t address = inst.hhll;
-            regs.R[x] = (int16_t)memory.readWord(address);
+            uint8_t y = inst.getY();
+            uint8_t n = regs.R[y] & 0x0F;
+            if (n > 0) {
+                setFlag(FLAG_C, (regs.R[x] & (1 << (n - 1))) != 0);
+                regs.R[x] = regs.R[x] >> n;
+            }
             updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // LDM RX, RY - Load word from memory address in RY into register
-        case OP_LDM_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            uint16_t address = (uint16_t)regs.R[y];
-            regs.R[x] = (int16_t)memory.readWord(address);
-            updateZeroNegativeFlags(regs.R[x]);
-            break;
-        }
+        // Cx - Push/Pop
         
-        // STM HHLL, RX - Store register word to memory address
-        case OP_STM_ADDR: {
+        case OP_PUSH: {  // 0xC0 - Push register
             uint8_t x = inst.getX();
-            uint16_t address = inst.hhll;
-            memory.writeWord(address, (uint16_t)regs.R[x]);
-            break;
-        }
-        
-        // STM RX, RY - Store RY to memory address in RX
-        case OP_STM_R: {
-            uint8_t x = inst.getX();
-            uint8_t y = inst.getY();
-            uint16_t address = (uint16_t)regs.R[x];
-            memory.writeWord(address, (uint16_t)regs.R[y]);
-            break;
-        }
-        
-        // PUSH RX - Push register onto stack
-        case OP_PUSH: {
-            uint8_t x = inst.getX();
-            regs.SP -= 2;  // Stack grows downward
+            regs.SP -= 2;
             memory.writeWord(regs.SP, (uint16_t)regs.R[x]);
             break;
         }
         
-        // POP RX - Pop from stack into register
-        case OP_POP: {
+        case OP_POP: {  // 0xC1 - Pop to register
             uint8_t x = inst.getX();
             regs.R[x] = (int16_t)memory.readWord(regs.SP);
-            regs.SP += 2;  // Move stack pointer up
+            regs.SP += 2;
             break;
         }
         
-        // PUSHALL - Push all 16 registers onto stack
-        case OP_PUSHALL: {
+        case OP_PUSHALL:  // 0xC2 - Push all registers
             for (int i = 0; i < 16; i++) {
                 regs.SP -= 2;
                 memory.writeWord(regs.SP, (uint16_t)regs.R[i]);
             }
             break;
-        }
         
-        // POPALL - Pop all 16 registers from stack
-        case OP_POPALL: {
-            for (int i = 15; i >= 0; i--) {  // Pop in reverse order
+        case OP_POPALL:  // 0xC3 - Pop all registers
+            for (int i = 15; i >= 0; i--) {
                 regs.R[i] = (int16_t)memory.readWord(regs.SP);
                 regs.SP += 2;
             }
             break;
-        }
         
-        // PUSHF - Push FLAGS register onto stack
-        case OP_PUSHF: {
+        case OP_PUSHF:  // 0xC4 - Push flags
             regs.SP -= 2;
             memory.writeWord(regs.SP, (uint16_t)regs.FLAGS);
             break;
-        }
         
-        // POPF - Pop FLAGS register from stack
-        case OP_POPF: {
+        case OP_POPF:  // 0xC5 - Pop flags
             regs.FLAGS = (uint8_t)memory.readWord(regs.SP);
             regs.SP += 2;
             break;
-        }
         
-        // JMP HHLL - Jump to address
-        case OP_JMP: {
-            regs.PC = inst.hhll - 4;  // -4 because step() adds 4
+        // Dx - Palette
+        
+        case OP_PAL_I: {  // 0xD0 - Load palette (immediate address)
+            if (graphics) {
+                uint8_t* paletteData = memory.getPointer(inst.hhll);
+                graphics->loadCustomPalette(paletteData);
+            }
             break;
         }
         
-        // JMC HHLL - Jump relative
-        case OP_JMC: {
-            int16_t offset = (int16_t)inst.hhll;
-            regs.PC = regs.PC + offset;
-            break;
-        }
-        
-        // JX - Jump to address in register RX
-        case OP_JX: {
+        case OP_PAL_R: {  // 0xD1 - Load palette (register address)
             uint8_t x = inst.getX();
-            regs.PC = (uint16_t)regs.R[x] - 4;
-            break;
-        }
-        
-        // JZ HHLL - Jump if zero flag is set
-        case OP_JZ: {
-            if (getFlag(FLAG_Z)) {
-                regs.PC = inst.hhll - 4;
+            if (graphics) {
+                uint8_t* paletteData = memory.getPointer((uint16_t)regs.R[x]);
+                graphics->loadCustomPalette(paletteData);
             }
             break;
         }
         
-        // JC HHLL - Jump if carry flag is set
-        case OP_JC: {
-            if (getFlag(FLAG_C)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
+        // === Ex - Not/Neg ===
         
-        // JN HHLL - Jump if negative flag is set
-        case OP_JN: {
-            if (getFlag(FLAG_N)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JNZ HHLL - Jump if zero flag is clear
-        case OP_JNZ: {
-            if (!getFlag(FLAG_Z)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JNC HHLL - Jump if carry flag is clear
-        case OP_JNC: {
-            if (!getFlag(FLAG_C)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JNN HHLL - Jump if negative flag is clear
-        case OP_JNN: {
-            if (!getFlag(FLAG_N)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JO HHLL - Jump if overflow flag is set
-        case OP_JO: {
-            if (getFlag(FLAG_O)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JNO HHLL - Jump if overflow flag is clear
-        case OP_JNO: {
-            if (!getFlag(FLAG_O)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JME HHLL - Jump if equal (Z flag set, after CMP)
-        case OP_JME: {
-            if (getFlag(FLAG_Z)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JNME HHLL - Jump if not equal (Z flag clear, after CMP)
-        case OP_JNME: {
-            if (!getFlag(FLAG_Z)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JG HHLL - Jump if greater (signed: Z clear AND N==O)
-        case OP_JG: {
-            bool z = getFlag(FLAG_Z);
-            bool n = getFlag(FLAG_N);
-            bool o = getFlag(FLAG_O);
-            
-            // Greater: not equal AND (N == O)
-            if (!z && (n == o)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JGE HHLL - Jump if greater or equal (signed: N==O)
-        case OP_JGE: {
-            bool n = getFlag(FLAG_N);
-            bool o = getFlag(FLAG_O);
-            
-            // Greater or equal: N == O
-            if (n == o) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JL HHLL - Jump if less (signed: N!=O)
-        case OP_JL: {
-            bool n = getFlag(FLAG_N);
-            bool o = getFlag(FLAG_O);
-            
-            // Less: N != O
-            if (n != o) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // JLE HHLL - Jump if less or equal (signed: Z set OR N!=O)
-        case OP_JLE: {
-            bool z = getFlag(FLAG_Z);
-            bool n = getFlag(FLAG_N);
-            bool o = getFlag(FLAG_O);
-            
-            // Less or equal: equal OR (N != O)
-            if (z || (n != o)) {
-                regs.PC = inst.hhll - 4;
-            }
-            break;
-        }
-        
-        // CALL HHLL - Call subroutine at address
-        case OP_CALL: {
-            regs.SP -= 2;
-            memory.writeWord(regs.SP, regs.PC + 4);  // Push return address
-            regs.PC = inst.hhll - 4;  // Jump to subroutine
-            break;
-        }
-        
-        // RET - Return from subroutine
-        case OP_RET: {
-            regs.PC = memory.readWord(regs.SP) - 4;  // Pop return address
-            regs.SP += 2;
-            break;
-        }
-        
-        // CL RX - Call address in register
-        case OP_CL: {
+        case OP_NOTI: {  // 0xE0 - NOT immediate (store in RX)
             uint8_t x = inst.getX();
-            regs.SP -= 2;
-            memory.writeWord(regs.SP, regs.PC + 4);  // Push return address
-            regs.PC = (uint16_t)regs.R[x] - 4;  // Jump to address in register
+            regs.R[x] = ~(int16_t)inst.hhll;
+            updateZeroNegativeFlags(regs.R[x]);
             break;
         }
         
-        // CLC HHLL - Conditional call if carry is set
-        case OP_CLC: {
-            if (getFlag(FLAG_C)) {
-                regs.SP -= 2;
-                memory.writeWord(regs.SP, regs.PC + 4);  // Push return address
-                regs.PC = inst.hhll - 4;  // Jump to subroutine
-            }
+        case OP_NOT_R: {  // 0xE1 - NOT register
+            uint8_t x = inst.getX();
+            regs.R[x] = ~regs.R[x];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_NOT_R2: {  // 0xE2 - NOT register to register
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            regs.R[x] = ~regs.R[y];
+            updateZeroNegativeFlags(regs.R[x]);
+            break;
+        }
+        
+        case OP_NEGI: {  // 0xE3 - NEG immediate (store in RX)
+            uint8_t x = inst.getX();
+            int16_t val = (int16_t)inst.hhll;
+            regs.R[x] = -val;
+            setFlag(FLAG_Z, regs.R[x] == 0);
+            setFlag(FLAG_N, regs.R[x] < 0);
+            setFlag(FLAG_O, val == -32768);
+            break;
+        }
+        
+        case OP_NEG_R: {  // 0xE4 - NEG register
+            uint8_t x = inst.getX();
+            int16_t original = regs.R[x];
+            regs.R[x] = -original;
+            setFlag(FLAG_Z, regs.R[x] == 0);
+            setFlag(FLAG_N, regs.R[x] < 0);
+            setFlag(FLAG_O, original == -32768);
+            break;
+        }
+        
+        case OP_NEG_R2: {  // 0xE5 - NEG register to register
+            uint8_t x = inst.getX();
+            uint8_t y = inst.getY();
+            int16_t original = regs.R[y];
+            regs.R[x] = -original;
+            setFlag(FLAG_Z, regs.R[x] == 0);
+            setFlag(FLAG_N, regs.R[x] < 0);
+            setFlag(FLAG_O, original == -32768);
             break;
         }
         

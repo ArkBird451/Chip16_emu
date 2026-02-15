@@ -4,6 +4,9 @@
 #include <random>
 #include "Memory.h"
 
+// Forward declaration
+class Graphics;
+
 // Flags register bits
 #define FLAG_C 0x01  // Carry
 #define FLAG_Z 0x02  // Zero
@@ -40,6 +43,7 @@ class CPU {
 private:
     Registers regs;      // CPU registers (PC, SP, R0-RF, FLAGS)
     Memory& memory;      // Reference to memory
+    Graphics* graphics;  // Pointer to graphics (optional)
     bool running;        // CPU running state
     uint64_t cycles;     // Cycle counter
     
@@ -52,6 +56,9 @@ private:
 public:
     // Constructor
     CPU(Memory& mem);
+    
+    // Set graphics system
+    void setGraphics(Graphics* gfx) { graphics = gfx; }
     
     // Core execution
     void reset(uint16_t startAddress = 0x0000);

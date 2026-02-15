@@ -135,11 +135,13 @@
   <ItemGroup>
     <ClCompile Include="Chip16_emu.cpp" />
     <ClCompile Include="CPU.cpp" />
+    <ClCompile Include="Graphics.cpp" />
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="ROMLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPU.h" />
+    <ClInclude Include="Graphics.h" />
     <ClInclude Include="Instructions.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="ROMLoader.h" />
