@@ -69,9 +69,81 @@ void Graphics::setFlipFlags(bool horizontal, bool vertical) {
 }
 
 // Draw sprite to foreground buffer
+// Returns true if collision detected
 bool Graphics::drawSprite(int16_t x, int16_t y, const uint8_t* spriteData, uint8_t* memory) {
     bool collision = false;
-
+    
+    // Width is in bytes (2 pixels per byte), height is in pixels
+    int widthPixels = spriteWidth * 2;
+    int heightPixels = spriteHeight;
+    
+    if (widthPixels == 0 || heightPixels == 0) return false;
+    
+    // Draw each row of the sprite
+    for (int row = 0; row < heightPixels; row++) {
+        // Calculate source row (handle vertical flip)
+        int srcRow = vFlip ? (heightPixels - 1 - row) : row;
+        
+        // Calculate screen Y position
+        int screenY = y + row;
+        
+        // Skip if off-screen vertically
+        if (screenY < 0 || screenY >= GFX_HEIGHT) continue;
+        
+        // Draw each pixel in the row
+        for (int col = 0; col < widthPixels; col++) {
+            // Calculate source column (handle horizontal flip)
+            int srcCol = hFlip ? (widthPixels - 1 - col) : col;
+            
+            // Calculate screen X position
+            int screenX = x + col;
+            
+            // Skip if off-screen horizontally 
+            if (screenX < 0 || screenX >= GFX_WIDTH) continue;
+            
+            // Get sprite pixel from sprite data
+            int srcByteIndex = srcRow * spriteWidth + srcCol / 2;
+            uint8_t srcByte = spriteData[srcByteIndex];
+            
+            // Extract 4-bit color (low nibble = first pixel, high nibble = second)
+            uint8_t spriteColor;
+            if (srcCol & 1) {
+                spriteColor = (srcByte >> 4) & 0x0F;  // High nibble (odd pixel)
+            } else {
+                spriteColor = srcByte & 0x0F;         // Low nibble (even pixel)
+            }
+            
+            // Skip transparent pixels (color 0)
+            if (spriteColor == 0) continue;
+            
+            // Calculate foreground buffer position
+            int dstByteIndex = (screenY * GFX_WIDTH + screenX) / 2;
+            uint8_t dstByte = foreground[dstByteIndex];
+            
+            // Get existing pixel color at destination
+            uint8_t existingColor;
+            if (screenX & 1) {
+                existingColor = (dstByte >> 4) & 0x0F;  // High nibble
+            } else {
+                existingColor = dstByte & 0x0F;         // Low nibble
+            }
+            
+            // Check collision (non-transparent overwrites non-transparent)
+            if (existingColor != 0) {
+                collision = true;
+            }
+            
+            // Write sprite pixel to foreground
+            if (screenX & 1) {
+                // High nibble (odd x)
+                foreground[dstByteIndex] = (dstByte & 0x0F) | (spriteColor << 4);
+            } else {
+                // Low nibble (even x)
+                foreground[dstByteIndex] = (dstByte & 0xF0) | spriteColor;
+            }
+        }
+    }
+    
     return collision;
 }
 

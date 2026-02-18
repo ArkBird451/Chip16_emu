@@ -132,13 +132,30 @@ void CPU::execute(const Instruction& inst) {
             break;
         }
         
-        case OP_DRW_I: {  // 0x05 - Draw sprite (immediate address)
-            // TODO: Implement sprite drawing
+        case OP_DRW_I: {  // 0x05 - Draw sprite at (RX, RY) from address HHLL
+            if (graphics) {
+                uint8_t x = inst.getX();
+                uint8_t y = inst.getY();
+                int16_t screenX = regs.R[x];
+                int16_t screenY = regs.R[y];
+                uint8_t* spriteData = memory.getPointer(inst.hhll);
+                bool collision = graphics->drawSprite(screenX, screenY, spriteData, nullptr);
+                setFlag(FLAG_C, collision);
+            }
             break;
         }
         
-        case OP_DRW_R: {  // 0x06 - Draw sprite (register address)
-            // TODO: Implement sprite drawing
+        case OP_DRW_R: {  // 0x06 - Draw sprite at (RX, RY) from address in RZ
+            if (graphics) {
+                uint8_t x = inst.getX();
+                uint8_t y = inst.getY();
+                uint8_t z = inst.hhll & 0x0F;
+                int16_t screenX = regs.R[x];
+                int16_t screenY = regs.R[y];
+                uint8_t* spriteData = memory.getPointer((uint16_t)regs.R[z]);
+                bool collision = graphics->drawSprite(screenX, screenY, spriteData, nullptr);
+                setFlag(FLAG_C, collision);
+            }
             break;
         }
         
