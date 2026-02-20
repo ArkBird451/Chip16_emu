@@ -88,13 +88,17 @@ int main(int argc, char* argv[]) {
         // Clear VBLANK at start of frame
         graphics->setVBlank(false);
         
+        // Calculate when VBLANK should occur (after ~90% of cycles = visible portion)
+        int vblankCycle = (cyclesToRun * 9) / 10;
+        
         // Execute CPU cycles for this frame
         for (int i = 0; i < cyclesToRun; i++) {
+            // Set VBLANK flag when we reach the blanking period
+            if (i == vblankCycle) {
+                graphics->setVBlank(true);
+            }
             cpu->step();
         }
-        
-        // Set VBLANK at end of frame
-        graphics->setVBlank(true);
         
         // Update sound system
         sound->update(deltaTime);

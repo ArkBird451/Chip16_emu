@@ -1,5 +1,6 @@
 #include "Input.h"
 #include "raylib.h"
+#include <iostream>
 
 // Constructor
 Input::Input(Memory& mem) : memory(mem), controller1(0), controller2(0) {
@@ -18,13 +19,14 @@ void Input::update() {
     controller1 = 0;
     controller2 = 0;
 
-    // Controller 1 - Arrow keys + Z/X/A/S
+    // Controller 1 - Arrow keys + Z/X for A/B, ENTER/SPACE for START/SELECT
     if (IsKeyDown(KEY_UP))      controller1 |= BTN_UP;
     if (IsKeyDown(KEY_DOWN))    controller1 |= BTN_DOWN;
     if (IsKeyDown(KEY_LEFT))    controller1 |= BTN_LEFT;
     if (IsKeyDown(KEY_RIGHT))   controller1 |= BTN_RIGHT;
-    if (IsKeyDown(KEY_A))       controller1 |= BTN_SELECT;
-    if (IsKeyDown(KEY_S))       controller1 |= BTN_START;
+    if (IsKeyDown(KEY_TAB))     controller1 |= BTN_SELECT;
+    if (IsKeyDown(KEY_ENTER))   controller1 |= BTN_START;
+    if (IsKeyDown(KEY_SPACE))   controller1 |= BTN_START;  // Alternative for START
     if (IsKeyDown(KEY_Z))       controller1 |= BTN_A;
     if (IsKeyDown(KEY_X))       controller1 |= BTN_B;
 
@@ -41,4 +43,9 @@ void Input::update() {
     // Write to I/O ports in memory
     memory.writeWord(IO_CONTROLLER1, controller1);
     memory.writeWord(IO_CONTROLLER2, controller2);
+    
+    // Debug: print when any input is detected
+    if (controller1 != 0) {
+        std::cout << "Controller 1: 0x" << std::hex << controller1 << std::dec << std::endl;
+    }
 }

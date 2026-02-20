@@ -4,7 +4,7 @@
 #include <string>
 #include "Memory.h"
 
-// C16 Header structure
+// C16 Header structure (16 bytes)
 #pragma pack(push, 1)
 struct C16Header {
     char magic[4];        // 'CH16'
@@ -12,6 +12,7 @@ struct C16Header {
     uint8_t specVersion;  // Version (0xHL format)
     uint32_t romSize;     // ROM size in bytes (little-endian)
     uint16_t startAddr;   // Start address (little-endian)
+    uint32_t crc32;       // CRC32 checksum (not validated)
 };
 #pragma pack(pop)
 

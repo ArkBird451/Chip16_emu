@@ -105,12 +105,12 @@ bool Graphics::drawSprite(int16_t x, int16_t y, const uint8_t* spriteData, uint8
             int srcByteIndex = srcRow * spriteWidth + srcCol / 2;
             uint8_t srcByte = spriteData[srcByteIndex];
             
-            // Extract 4-bit color (low nibble = first pixel, high nibble = second)
+            // Extract 4-bit color (high nibble = first pixel, low nibble = second)
             uint8_t spriteColor;
             if (srcCol & 1) {
-                spriteColor = (srcByte >> 4) & 0x0F;  // High nibble (odd pixel)
+                spriteColor = srcByte & 0x0F;         // Low nibble (odd/right pixel)
             } else {
-                spriteColor = srcByte & 0x0F;         // Low nibble (even pixel)
+                spriteColor = (srcByte >> 4) & 0x0F;  // High nibble (even/left pixel)
             }
             
             // Skip transparent pixels (color 0)
@@ -123,9 +123,9 @@ bool Graphics::drawSprite(int16_t x, int16_t y, const uint8_t* spriteData, uint8
             // Get existing pixel color at destination
             uint8_t existingColor;
             if (screenX & 1) {
-                existingColor = (dstByte >> 4) & 0x0F;  // High nibble
+                existingColor = dstByte & 0x0F;         // Low nibble (odd/right pixel)
             } else {
-                existingColor = dstByte & 0x0F;         // Low nibble
+                existingColor = (dstByte >> 4) & 0x0F;  // High nibble (even/left pixel)
             }
             
             // Check collision (non-transparent overwrites non-transparent)
@@ -135,11 +135,11 @@ bool Graphics::drawSprite(int16_t x, int16_t y, const uint8_t* spriteData, uint8
             
             // Write sprite pixel to foreground
             if (screenX & 1) {
-                // High nibble (odd x)
-                foreground[dstByteIndex] = (dstByte & 0x0F) | (spriteColor << 4);
-            } else {
-                // Low nibble (even x)
+                // Low nibble (odd/right x)
                 foreground[dstByteIndex] = (dstByte & 0xF0) | spriteColor;
+            } else {
+                // High nibble (even/left x)
+                foreground[dstByteIndex] = (dstByte & 0x0F) | (spriteColor << 4);
             }
         }
     }
@@ -175,15 +175,15 @@ Color32 Graphics::getPixelColor(int x, int y) const {
     int byteIndex = (y * GFX_WIDTH + x) / 2;
     uint8_t byte = foreground[byteIndex];
 
-    // Extract 4-bit color index
+    // Extract 4-bit color index (high nibble = left/even, low nibble = right/odd)
     uint8_t colorIndex;
     if (x & 1) {
-        // Odd pixel (high nibble)
-        colorIndex = (byte >> 4) & 0x0F;
+        // Odd pixel (low nibble - right)
+        colorIndex = byte & 0x0F;
     }
     else {
-        // Even Pixel (low nibble)
-        colorIndex = byte & 0x0F;
+        // Even pixel (high nibble - left)
+        colorIndex = (byte >> 4) & 0x0F;
     }
 
     // If foreground is transparent (0), use background color
