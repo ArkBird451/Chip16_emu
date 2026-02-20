@@ -4,8 +4,9 @@
 #include <random>
 #include "Memory.h"
 
-// Forward declaration
+// Forward declarations
 class Graphics;
+class SoundManager;
 
 // Flags register bits
 #define FLAG_C 0x01  // Carry
@@ -44,6 +45,7 @@ private:
     Registers regs;      // CPU registers (PC, SP, R0-RF, FLAGS)
     Memory& memory;      // Reference to memory
     Graphics* graphics;  // Pointer to graphics (optional)
+    SoundManager* sound; // Pointer to sound (optional)
     bool running;        // CPU running state
     uint64_t cycles;     // Cycle counter
     
@@ -59,6 +61,9 @@ public:
     
     // Set graphics system
     void setGraphics(Graphics* gfx) { graphics = gfx; }
+    
+    // Set sound system
+    void setSound(SoundManager* snd) { sound = snd; }
     
     // Core execution
     void reset(uint16_t startAddress = 0x0000);

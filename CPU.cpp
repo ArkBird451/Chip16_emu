@@ -1,13 +1,14 @@
 #include "CPU.h"
 #include "Instructions.h"
 #include "Graphics.h"
+#include "Sound.h"
 #include <iostream>
 #include <iomanip>
 #include <cstring>
 #include <random>
 
 // Constructor
-CPU::CPU(Memory& mem) : memory(mem), graphics(nullptr), running(false), cycles(0) {
+CPU::CPU(Memory& mem) : memory(mem), graphics(nullptr), sound(nullptr), running(false), cycles(0) {
     // Initialize random number generator with random seed
     std::random_device rd;
     rng.seed(rd());
@@ -181,13 +182,52 @@ void CPU::execute(const Instruction& inst) {
         }
         
         case OP_SND0:  // 0x09 - Stop sound
-        case OP_SND1:  // 0x0A - Play 500Hz
-        case OP_SND2:  // 0x0B - Play 1000Hz
-        case OP_SND3:  // 0x0C - Play 1500Hz
-        case OP_SNP:   // 0x0D - Play sound from register
-        case OP_SNG:   // 0x0E - Set sound generation parameters
-            // TODO: Implement sound
+            if (sound) {
+                sound->stop();
+            }
             break;
+        
+        case OP_SND1:  // 0x0A - Play 500Hz for HHLL ms
+            if (sound) {
+                sound->playTone(500.0f, (float)inst.hhll);
+            }
+            break;
+        
+        case OP_SND2:  // 0x0B - Play 1000Hz for HHLL ms
+            if (sound) {
+                sound->playTone(1000.0f, (float)inst.hhll);
+            }
+            break;
+        
+        case OP_SND3:  // 0x0C - Play 1500Hz for HHLL ms
+            if (sound) {
+                sound->playTone(1500.0f, (float)inst.hhll);
+            }
+            break;
+        
+        case OP_SNP: {  // 0x0D - Play tone at RX Hz for HHLL ms
+            if (sound) {
+                uint8_t x = inst.getX();
+                float freq = (float)(uint16_t)regs.R[x];
+                sound->playTone(freq, (float)inst.hhll);
+            }
+            break;
+        }
+        
+        case OP_SNG: {  // 0x0E - Set ADSR envelope parameters
+            if (sound) {
+                // Byte 1 (yx): AD (Attack in high nibble, Decay in low)
+                // Byte 2-3 (hhll): SRVT (Sustain, Release, Volume, waveType)
+                int attack = (inst.yx >> 4) & 0x0F;
+                int decay = inst.yx & 0x0F;
+                int sustain = (inst.hhll >> 12) & 0x0F;
+                int release = (inst.hhll >> 8) & 0x0F;
+                int volume = (inst.hhll >> 4) & 0x0F;
+                int waveType = inst.hhll & 0x03;
+                sound->setEnvelope(attack, decay, sustain, release, volume, waveType);
+            }
+            break;
+        }
         
         //1x - Jumps
         

@@ -3,6 +3,7 @@
 #include "CPU.h"
 #include "Graphics.h"
 #include "Input.h"
+#include "Sound.h"
 #include "ROMLoader.h"
 #include "raylib.h"
 
@@ -32,9 +33,14 @@ int main(int argc, char* argv[]) {
     Memory* memory = new Memory();
     Graphics* graphics = new Graphics();
     Input* input = new Input(*memory);
+    SoundManager* sound = new SoundManager();
     CPU* cpu = new CPU(*memory);
     cpu->setGraphics(graphics);
+    cpu->setSound(sound);
     ROMLoader loader;
+    
+    // Initialize audio system
+    sound->init();
     
     // Create texture for rendering
     Image screenImage = GenImageColor(SCREEN_WIDTH, SCREEN_HEIGHT, BLACK);
@@ -47,6 +53,8 @@ int main(int argc, char* argv[]) {
         std::cerr << "Failed to load ROM" << std::endl;
         UnloadTexture(screenTexture);
         delete cpu;
+        delete sound;
+        delete input;
         delete graphics;
         delete memory;
         CloseWindow();
@@ -88,6 +96,9 @@ int main(int argc, char* argv[]) {
         // Set VBLANK at end of frame
         graphics->setVBlank(true);
         
+        // Update sound system
+        sound->update(deltaTime);
+        
         // Copy graphics buffer to pixel array
         for (int y = 0; y < SCREEN_HEIGHT; y++) {
             for (int x = 0; x < SCREEN_WIDTH; x++) {
@@ -118,6 +129,7 @@ int main(int argc, char* argv[]) {
     delete[] pixels;
     UnloadTexture(screenTexture);
     delete cpu;
+    delete sound;
     delete input;
     delete graphics;
     delete memory;

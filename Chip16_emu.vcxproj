@@ -139,6 +139,7 @@
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="Memory.cpp" />
     <ClCompile Include="ROMLoader.cpp" />
+    <ClCompile Include="Sound.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPU.h" />
@@ -147,6 +148,7 @@
     <ClInclude Include="Instructions.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="ROMLoader.h" />
+    <ClInclude Include="Sound.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
