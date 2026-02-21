@@ -1,6 +1,5 @@
 #include "Input.h"
 #include "raylib.h"
-#include <iostream>
 
 // Constructor
 Input::Input(Memory& mem) : memory(mem), controller1(0), controller2(0) {
@@ -43,9 +42,4 @@ void Input::update() {
     // Write to I/O ports in memory
     memory.writeWord(IO_CONTROLLER1, controller1);
     memory.writeWord(IO_CONTROLLER2, controller2);
-    
-    // Debug: print when any input is detected
-    if (controller1 != 0) {
-        std::cout << "Controller 1: 0x" << std::hex << controller1 << std::dec << std::endl;
-    }
 }

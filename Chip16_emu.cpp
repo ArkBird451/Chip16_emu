@@ -1,4 +1,3 @@
-#include <iostream>
 #include "Memory.h"
 #include "CPU.h"
 #include "Graphics.h"
@@ -15,19 +14,22 @@
 // CPU timing (1MHz = 1,000,000 cycles per second)
 #define CPU_CLOCK_HZ 1000000
 
+// Rendering always runs at 60fps for responsive input
+// Game speed is controlled by VBLANK_DIVISOR:
+//   1 = 60fps game speed (full speed)
+//   2 = 30fps game speed (half speed)
+//   3 = 20fps game speed (third speed)
+#define TARGET_FPS 60
+#define VBLANK_DIVISOR 2
+
 int main(int argc, char* argv[]) {
-    std::cout << "Chip16 Emulator" << std::endl;
-    
-    // Check command line arguments
     if (argc < 2) {
-        std::cout << "Usage: Chip16_emu <rom_file.c16|.bin>" << std::endl;
-        std::cout << "Supports both raw binary and C16 format ROMs" << std::endl;
         return 1;
     }
     
     // Initialize window
     InitWindow(SCREEN_WIDTH * WINDOW_SCALE, SCREEN_HEIGHT * WINDOW_SCALE, "Chip16 Emulator");
-    SetTargetFPS(60);
+    SetTargetFPS(TARGET_FPS);
     
     // Create emulator components (heap allocation)
     Memory* memory = new Memory();
@@ -50,7 +52,6 @@ int main(int argc, char* argv[]) {
     // Load ROM
     uint16_t startAddr = 0x0000;
     if (!loader.loadROM(argv[1], *memory, startAddr)) {
-        std::cerr << "Failed to load ROM" << std::endl;
         UnloadTexture(screenTexture);
         delete cpu;
         delete sound;
@@ -63,43 +64,43 @@ int main(int argc, char* argv[]) {
     
     // Reset CPU to start address
     cpu->reset(startAddr);
-    
-    std::cout << std::endl << "Starting Execution" << std::endl << std::endl;
-    
+
     // Pixel buffer for texture update
     Color* pixels = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
-    
-    // Timing variables
+
     double cycleAccumulator = 0.0;
-    
+    int frameCounter = 0;
+
     // Main loop
     while (!WindowShouldClose()) {
-        // Get delta time (seconds since last frame)
         float deltaTime = GetFrameTime();
-        
-        // Calculate how many cycles to run based on elapsed time
+        frameCounter++;
+
+        // Calculate how many CPU cycles to run this frame
         cycleAccumulator += deltaTime * CPU_CLOCK_HZ;
         int cyclesToRun = (int)cycleAccumulator;
         cycleAccumulator -= cyclesToRun;
-        
-        // Update input state (reads keyboard, writes to I/O ports)
+
+        // Update input state every frame so it stays responsive
         input->update();
-        
+
+        // Only fire VBLANK every VBLANK_DIVISOR frames to control game speed
+        bool fireVBlank = (frameCounter % VBLANK_DIVISOR == 0);
+
         // Clear VBLANK at start of frame
         graphics->setVBlank(false);
-        
-        // Calculate when VBLANK should occur (after ~90% of cycles = visible portion)
+
+        // VBLANK occurs at 90% through the frame (visible scanlines done)
         int vblankCycle = (cyclesToRun * 9) / 10;
-        
+
         // Execute CPU cycles for this frame
         for (int i = 0; i < cyclesToRun; i++) {
-            // Set VBLANK flag when we reach the blanking period
-            if (i == vblankCycle) {
+            if (fireVBlank && i == vblankCycle) {
                 graphics->setVBlank(true);
             }
             cpu->step();
         }
-        
+
         // Update sound system
         sound->update(deltaTime);
         
@@ -123,12 +124,7 @@ int main(int argc, char* argv[]) {
         
         EndDrawing();
     }
-    
-    std::cout << std::endl << "Execution Finished" << std::endl << std::endl;
-    
-    // Dump final CPU state
-    cpu->dumpState();
-    
+
     // Cleanup
     delete[] pixels;
     UnloadTexture(screenTexture);
