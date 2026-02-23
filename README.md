@@ -6,6 +6,10 @@ A Chip16 emulator written in C++ using Raylib for graphics, input, and audio.
 
 The hardware is fictional but closely mimics the constraints of real retro systems - limited memory, a small color palette, and hardware-synced game logic via VBlank. This emulator implements the full Chip16 specification including all CPU opcodes, sprite rendering with collision detection, two-controller input, and real-time audio synthesis.
 
+![alt text](<Screenshot 2026-02-23 142843.png>)
+
+![alt text](<Screenshot 2026-02-23 143005.png>)
+
 ## Requirements
 
 - Windows
